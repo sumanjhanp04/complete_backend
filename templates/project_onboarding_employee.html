@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project OnBoard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 30px;
+            color: #000;
+            background-color: #deffda;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .bar {
+            width: 100%;
+            height: 8px;
+            background-color: #2D2979;
+        }
+
+        h1 {
+            color: #2D2979;
+            text-align: center;
+        }
+
+        p {
+            color: #000000;
+            text-align: justify;
+        }
+
+        .creds {
+            padding: 30px;
+            color: #000000;
+            border-radius: 5px;
+            background-color: #f3ffe8;
+        }
+
+        a {
+            text-decoration: none;
+            font-weight: bold;
+            color: #2D2979;
+        }
+
+        .important {
+            color: #ff0000;
+            font-weight: bolder;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="bar">&nbsp;</div>
+        <h1>{{project_name}}</h1>
+        <p>Hi {{name}}, </p>
+        <p>New Project named "{{project_name}}" is onboarded. and you will be working on that project. Open the
+            <a href="https://app.pasdgtal.com/projects" target="_blank">PASDT Portal</a> to view the project and see
+            other
+            details about this project.
+        </p>
+
+        <p> PAS Digital Technologies</p>
+    </div>
+</body>
+
+</html>

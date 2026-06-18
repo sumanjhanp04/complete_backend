@@ -1,0 +1,122 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@lib/database": [
+        "libs/database/src"
+      ],
+      "@lib/database/*": [
+        "libs/database/src/*"
+      ],
+      "@lib/config": [
+        "libs/config/src"
+      ],
+      "@lib/config/*": [
+        "libs/config/src/*"
+      ],
+      "@lib/rmq": [
+        "libs/rmq/src"
+      ],
+      "@lib/rmq/*": [
+        "libs/rmq/src/*"
+      ],
+      "@lib/common": [
+        "libs/common/src"
+      ],
+      "@lib/common/*": [
+        "libs/common/src/*"
+      ],
+      "@lib/dto": [
+        "libs/dto/src"
+      ],
+      "@lib/dto/*": [
+        "libs/dto/src/*"
+      ],
+      "@lib/guards": [
+        "libs/guards/src"
+      ],
+      "@lib/guards/*": [
+        "libs/guards/src/*"
+      ],
+      "@lib/decorators": [
+        "libs/decorators/src"
+      ],
+      "@lib/decorators/*": [
+        "libs/decorators/src/*"
+      ],
+      "@lib/token": [
+        "libs/token/src"
+      ],
+      "@lib/token/*": [
+        "libs/token/src/*"
+      ],
+      "@lib/middlewares": [
+        "libs/middlewares/src"
+      ],
+      "@lib/middlewares/*": [
+        "libs/middlewares/src/*"
+      ],
+      "@lib/interceptors": [
+        "libs/interceptors/src"
+      ],
+      "@lib/interceptors/*": [
+        "libs/interceptors/src/*"
+      ],
+      "@app/dynamic-cron": [
+        "libs/dynamic-cron/src"
+      ],
+      "@app/dynamic-cron/*": [
+        "libs/dynamic-cron/src/*"
+      ],
+      "@app/file-upload": [
+        "libs/file-upload/src"
+      ],
+      "@app/file-upload/*": [
+        "libs/file-upload/src/*"
+      ],
+      "@app/libs/common/encrypt": [
+        "libs/libs/common/encrypt/src"
+      ],
+      "@app/libs/common/encrypt/*": [
+        "libs/libs/common/encrypt/src/*"
+      ],
+      "@app/common/encrypt": [
+        "libs/common/encrypt/src"
+      ],
+      "@app/common/encrypt/*": [
+        "libs/common/encrypt/src/*"
+      ],
+      "@app/common/src/encrypt": [
+        "libs/common/src/encrypt/src"
+      ],
+      "@app/common/src/encrypt/*": [
+        "libs/common/src/encrypt/src/*"
+      ],
+      "@app/cache/*": [
+        "libs/cache/src/*"
+      ],
+      "@lib/event": [
+        "libs/event/src"
+      ],
+      "@lib/event/*": [
+        "libs/event/src/*"
+      ]
+    }
+  }
+}
