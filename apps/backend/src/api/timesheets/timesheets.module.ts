@@ -227,4 +227,4 @@ import { NotifyModule } from '../../socket/notify/notify.module';
 |
 |--------------------------------------------------------------------------
 */
-export class TimeSheetsModule { }
+export class TimeSheetsModule {}

@@ -11,26 +11,150 @@ import { RedisCacheModule } from '@app/cache/cache.module';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 @Module({
+
+  /*
+  |--------------------------------------------------------------------------
+  | Imported Modules
+  |--------------------------------------------------------------------------
+  */
   imports: [
+
+    /**
+     * Database Module
+     *
+     * Provides MongoDB schemas/models:
+     * - Notification
+     * - User
+     * - Calendar
+     * etc.
+     */
     DatabaseModule,
+
+    /**
+     * JWT Module
+     *
+     * Used for:
+     * - Token Verification
+     * - Socket Authentication
+     */
     JwtModule,
+
+    /**
+     * Redis Cache Module
+     *
+     * Provides RedisService
+     * Used for:
+     * - Caching
+     * - Session Storage
+     * - Fast Lookup
+     */
     RedisCacheModule,
-    RmqModule.register({ name: AUTH_SERVICE }),
+
+    /**
+     * RabbitMQ Client Registration
+     *
+     * Creates RabbitMQ connection
+     * to Auth Microservice.
+     */
+    RmqModule.register({
+      name: AUTH_SERVICE,
+    }),
   ],
-  controllers: [NotifyController],
+
+  /*
+  |--------------------------------------------------------------------------
+  | Controllers
+  |--------------------------------------------------------------------------
+  |
+  | RabbitMQ Consumers
+  |
+  */
+  controllers: [
+
+    /**
+     * Receives RabbitMQ Messages
+     *
+     * Example:
+     * SEND_ONLINE_USER_NOTIFICATION
+     * SEND_SCHEDULE_NOTIFICATION
+     */
+    NotifyController,
+  ],
+
+  /*
+  |--------------------------------------------------------------------------
+  | Providers
+  |--------------------------------------------------------------------------
+  |
+  | Services available inside module
+  |
+  */
   providers: [
+
+    /**
+     * RabbitMQ Utility Service
+     *
+     * Used for:
+     * - ACK messages
+     * - Queue operations
+     */
     RmqService,
+
+    /**
+     * Main Notification Service
+     *
+     * Business Logic Layer
+     */
     NotifyService,
+
+    /**
+     * Socket.IO Gateway
+     *
+     * Handles:
+     * - User Connections
+     * - Realtime Notifications
+     * - WebSocket Events
+     */
     NotifyGateway,
+
+    /**
+     * Helper Service
+     *
+     * Handles:
+     * - Notification Queries
+     * - Token Validation
+     * - Read/Dismiss Operations
+     */
     NotifyHelperService,
+
+    /**
+     * Mock CACHE_MANAGER Provider
+     *
+     * Prevents dependency injection errors
+     * if cache manager is required somewhere.
+     */
     {
       provide: CACHE_MANAGER,
       useValue: {},
     },
   ],
-  exports:[
+
+  /*
+  |--------------------------------------------------------------------------
+  | Exports
+  |--------------------------------------------------------------------------
+  |
+  | Makes NotifyService available
+  | to other modules.
+  |
+  */
+  exports: [
+
+    /**
+     * Can be injected into
+     * other modules/services.
+     */
     NotifyService,
-  ]
+  ],
 })
 export class NotifyModule { }
-
