@@ -5,9 +5,7 @@ import {
   Get,
   Post,
   Param,
-  // UseInterceptors,
   UseGuards,
-  // UploadedFiles,
   BadRequestException,
   Query,
   NotFoundException,
@@ -30,12 +28,37 @@ import { HasAccess, UserDetails } from '@lib/decorators';
 import { FileUploadService } from '@app/file-upload';
 import { RedisService } from '@app/cache/cache.service';
 import { ListQueryDTO } from '@lib/dto';
-import { CreateNoticeDto, UpdateNoticeDto } from '@lib/dto/dtos/notice/notice.dto';
+import {
+  CreateNoticeDto,
+  UpdateNoticeDto,
+} from '@lib/dto/dtos/notice/notice.dto';
+
+/**
+ * ============================================================================
+ * Notice Controller
+ * ============================================================================
+ *
+ * Responsibilities:
+ * - Generate AWS S3 Pre-Signed URLs
+ * - Store temporary upload metadata in Redis
+ * - Finalize uploads and save notice records
+ * - Retrieve notices
+ * - Update notices
+ * - Delete notices
+ *
+ * Security:
+ * - Protected by AccessGuard
+ * - Requires JWT Authentication
+ *
+ * Route:
+ * /notices
+ * ============================================================================
+ */
 
 @ApiBearerAuth()
 @Controller('notices')
 @UseGuards(AccessGuard)
-@ApiTags('Notices') // This groups the endpoints under the "Files" section in Swagger
+@ApiTags('Notices')
 export class NoticeController {
   private logger = new Logger(NoticeController.name);
 
@@ -45,22 +68,41 @@ export class NoticeController {
     private readonly redisService: RedisService,
   ) { }
 
-  // > FileController (first two routes)
-
+  /**
+   * ==========================================================================
+   * Create Notice Upload Session
+   * ==========================================================================
+   *
+   * Endpoint:
+   * POST /notices
+   *
+   * Purpose:
+   * - Generates AWS S3 Pre-Signed URLs
+   * - Stores upload metadata in Redis
+   * - Returns upload URL and file key
+   *
+   * Flow:
+   * Client
+   *   ↓
+   * NoticeController
+   *   ↓
+   * Generate Signed URL
+   *   ↓
+   * Save Metadata in Redis
+   *   ↓
+   * Return Signed URL
+   * ==========================================================================
+   */
   @Post()
   @HasAccess()
   @ApiOperation({ summary: 'Upload a new file' })
   @ApiBody({
-    description: 'Upload multiple file along with metadata',
+    description: 'Upload multiple files along with metadata',
     type: CreateNoticeDto,
   })
   async createFile(
     @Body() createNoticeDto: CreateNoticeDto,
-
   ) {
-
-
-
     const {
       title,
       description,
@@ -71,22 +113,43 @@ export class NoticeController {
       expiryDate,
     } = createNoticeDto;
 
-
-
-    // Process each file
     const results = [];
+
+    /**
+     * Process each file separately
+     */
     for (const file of files) {
-      // Generate a unique ID for the file
+      /**
+       * Generate unique Redis cache key
+       */
       const fileKey = uuidv4();
-      const key = `announcements/${new Date().getFullYear()}/${new Date().getMonth().toString().padStart(2, '0')}/${file.filename}`;
 
-      // Create a signed URL for the file
-      const signedUrl = await this.fileUploadService.createSignedUrl({
-        filename: key,
-        type: file.type, // Use the type from the metadata
-      });
+      /**
+       * S3 Storage Path
+       *
+       * Example:
+       * announcements/2026/05/document.pdf
+       */
+      const key = `announcements/${new Date().getFullYear()}/${new Date()
+        .getMonth()
+        .toString()
+        .padStart(2, '0')}/${file.filename}`;
 
-      // Cache file metadata for later validation
+      /**
+       * Generate AWS S3 Signed Upload URL
+       */
+      const signedUrl =
+        await this.fileUploadService.createSignedUrl({
+          filename: key,
+          type: file.type,
+        });
+
+      /**
+       * Store upload metadata temporarily in Redis
+       *
+       * Expiry:
+       * 30 Minutes
+       */
       await this.redisService.setInCache(
         fileKey,
         JSON.stringify({
@@ -101,14 +164,18 @@ export class NoticeController {
           },
           key,
         }),
-
         1800000,
       );
-      this.logger.log('KEY:', key);
-      results.push({ fileKey, signedUrl });
+
+      this.logger.log(`Generated Upload Path: ${key}`);
+
+      results.push({
+        fileKey,
+        signedUrl,
+      });
     }
 
-    this.logger.log('results', results);
+    this.logger.log('Generated Upload URLs', results);
 
     return {
       success: true,
@@ -117,37 +184,80 @@ export class NoticeController {
     };
   }
 
+  /**
+   * ==========================================================================
+   * Finalize File Upload
+   * ==========================================================================
+   *
+   * Endpoint:
+   * POST /notices/finalize/:fileKey
+   *
+   * Purpose:
+   * - Validate upload session
+   * - Read metadata from Redis
+   * - Save notice record in database
+   * - Remove Redis cache
+   *
+   * Flow:
+   * Redis
+   *   ↓
+   * Validate Session
+   *   ↓
+   * Create Notice Record
+   *   ↓
+   * Remove Cache
+   *   ↓
+   * Return Notice
+   * ==========================================================================
+   */
   @Post('/finalize/:fileKey')
-  async finalizeFileUpload(@Param('fileKey') fileKey: string) {
-    // Retrieve cached metadata
-    const cachedFile = await this.redisService.getFromCache(fileKey);
+  async finalizeFileUpload(
+    @Param('fileKey') fileKey: string,
+  ) {
+    /**
+     * Fetch cached upload metadata
+     */
+    const cachedFile =
+      await this.redisService.getFromCache(fileKey);
 
     if (!cachedFile) {
-      throw new BadRequestException('File upload session expired or invalid');
+      throw new BadRequestException(
+        'File upload session expired or invalid',
+      );
     }
 
-    const pasredData = JSON.parse(cachedFile) as {
+    const parsedData = JSON.parse(cachedFile) as {
       createNoticeDto: Omit<CreateNoticeDto, 'files'>;
       filename: string;
       key: string;
     };
 
-    const { createNoticeDto, filename, key } = pasredData;
+    const { createNoticeDto, filename, key } = parsedData;
 
-    // Check if the file exists in S3
-    // const isUploaded = await this.fileUploadService.verifyFileInS3(key);
+    /**
+     * Optional:
+     * Verify file exists in S3 before saving
+     */
+
+    // const isUploaded =
+    //   await this.fileUploadService.verifyFileInS3(key);
+
     // if (!isUploaded) {
     //   throw new BadRequestException('File not found in S3');
     // }
 
-    // Save file details in the database
+    /**
+     * Create Notice Record in Database
+     */
     const file = await this.noticeService.createNotice({
       createNoticeDto,
       filename,
       path: key,
     });
 
-    // Clean up cached metadata
+    /**
+     * Remove temporary Redis cache
+     */
     await this.redisService.destroy(fileKey);
 
     return {
@@ -157,6 +267,23 @@ export class NoticeController {
     };
   }
 
+  /**
+   * ==========================================================================
+   * Get All Notices
+   * ==========================================================================
+   *
+   * Endpoint:
+   * GET /notices
+   *
+   * Supports:
+   * - department filtering
+   * - shift filtering
+   * - employee filtering
+   * - pagination
+   * - sorting
+   * - keyword search
+   * ==========================================================================
+   */
   @Get()
   @ApiQuery({
     name: 'department',
@@ -183,76 +310,140 @@ export class NoticeController {
   @ApiQuery({ name: 'keyword', required: false, type: String })
   async findAll(
     @UserDetails() user: any,
-    @Query() query: { department?: string[], shift?: string[], employeeId?: string[] } & ListQueryDTO,
+    @Query()
+    query: {
+      department?: string[];
+      shift?: string[];
+      employeeId?: string[];
+    } & ListQueryDTO,
   ) {
     const { department, shift, employeeId } = query;
 
-    const searchType = { department, shift, employeeId };
+    const searchType = {
+      department,
+      shift,
+      employeeId,
+    };
 
-    return this.noticeService.findAll(user, searchType, query);
+    return this.noticeService.findAll(
+      user,
+      searchType,
+      query,
+    );
   }
 
+  /**
+   * ==========================================================================
+   * Update Notice
+   * ==========================================================================
+   *
+   * Endpoint:
+   * PUT /notices/:id
+   *
+   * Authorization:
+   * - Admin
+   * - HR
+   * - Manager
+   * ==========================================================================
+   */
   @Put(':id')
-  @ApiOperation({ summary: 'Update a file by ID' })
+  @ApiOperation({ summary: 'Update notice by ID' })
   async updateNotice(
     @Param('id') noticeId: string,
     @Body() updateNoticeDto: UpdateNoticeDto,
     @UserDetails() user: any,
   ) {
-    const existingNotice = await this.noticeService.findById(noticeId);
+    const existingNotice =
+      await this.noticeService.findById(noticeId);
 
     if (!existingNotice) {
       throw new NotFoundException('Notice not found');
     }
 
-    // Authorization check
+    /**
+     * Authorization Check
+     */
     if (
       !['Admin', 'Hr'].includes(user.userId.role) &&
       user.userId.isManager === false
     ) {
       throw new BadRequestException(
-        'You are not authorized to update this file',
+        'You are not authorized to update this notice',
       );
     }
 
+    const updatedNotice =
+      await this.noticeService.updateNotice(
+        noticeId,
+        updateNoticeDto,
+      );
 
-
-    const updatedFile = await this.noticeService.updateNotice(
-      noticeId,
-      updateNoticeDto,
-    );
     return {
       success: true,
       message: 'Notice updated successfully',
-      data: updatedFile,
+      data: updatedNotice,
     };
   }
 
+  /**
+   * ==========================================================================
+   * Delete Notice
+   * ==========================================================================
+   *
+   * Endpoint:
+   * DELETE /notices/:id
+   *
+   * Authorization:
+   * - Admin
+   * - HR
+   * - Manager
+   *
+   * Flow:
+   * Validate Notice
+   *   ↓
+   * Authorization Check
+   *   ↓
+   * Delete S3 File
+   *   ↓
+   * Delete DB Record
+   * ==========================================================================
+   */
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a file by ID' })
-  async deleteFile(@Param('id') fileId: string, @UserDetails() user: any) {
-    const existingFile = await this.noticeService.findById(fileId);
+  @ApiOperation({ summary: 'Delete notice by ID' })
+  async deleteFile(
+    @Param('id') fileId: string,
+    @UserDetails() user: any,
+  ) {
+    const existingFile =
+      await this.noticeService.findById(fileId);
 
     if (!existingFile) {
       throw new NotFoundException('File not found');
     }
 
-    // Authorization check
+    /**
+     * Authorization Check
+     */
     if (
       !['Admin', 'Hr'].includes(user.userId.role) &&
       user.userId.isManager === false
     ) {
       throw new BadRequestException(
-        'You are not authorized to update this file',
+        'You are not authorized to delete this notice',
       );
     }
 
-    // Delete the file from storage and database
-    await this.noticeService.deleteNotice(fileId, existingFile.filePath);
+    /**
+     * Delete file from S3 and Database
+     */
+    await this.noticeService.deleteNotice(
+      fileId,
+      existingFile.filePath,
+    );
 
     return {
       success: true,
-      message: 'File deleted successfully',
+      message: 'Notice deleted successfully',
     };
   }
 }

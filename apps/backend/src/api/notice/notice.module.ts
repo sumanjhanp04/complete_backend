@@ -1,25 +1,178 @@
-// Purpose: File module for handling file uploads and downloads.
+// ============================================================================
+// Notice Module
+// ============================================================================
+//
+// Purpose:
+// This module manages the Notice feature of the application.
+//
+// Responsibilities:
+// - Register Notice MongoDB schema
+// - Enable AWS S3 file upload functionality
+// - Enable Redis caching
+// - Load Notice Controller and Service
+//
+// Architecture:
+//
+// NoticeModule
+//      │
+//      ├── NoticeController
+//      │        │
+//      │        ▼
+//      │   NoticeService
+//      │        │
+//      │        ├── MongoDB (Notice Collection)
+//      │        ├── AWS S3 (File Upload)
+//      │        └── Redis Cache
+//      │
+//      └── Supporting Modules
+//              ├── ConfigModule
+//              ├── FileUploadModule
+//              ├── RedisCacheModule
+//              └── MongooseModule
+//
+// ============================================================================
+
 import { Module } from '@nestjs/common';
 import { NoticeService } from './notice.service';
 import { NoticeController } from './notice.controller';
+
 import { FileUploadService } from '../../../../../libs/file-upload/src/file-upload.service';
 import { FileUploadModule } from '@app/file-upload';
+
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+
 import {
   Notice,
   NoticeSchema,
 } from '@lib/database/schemas/notices/notice.schema';
+
 import { RedisCacheModule } from '@app/cache/cache.module';
 
 @Module({
   imports: [
+    /**
+     * ------------------------------------------------------------------------
+     * Config Module
+     * ------------------------------------------------------------------------
+     *
+     * Loads environment variables from .env
+     *
+     * Examples:
+     * - AWS_ACCESS_KEY
+     * - AWS_SECRET_KEY
+     * - REDIS_URL
+     * - DATABASE_URL
+     *
+     * ------------------------------------------------------------------------
+     */
     ConfigModule,
-    MongooseModule.forFeature([{ name: Notice.name, schema: NoticeSchema }]),
+
+    /**
+     * ------------------------------------------------------------------------
+     * MongoDB Schema Registration
+     * ------------------------------------------------------------------------
+     *
+     * Registers Notice collection with Mongoose.
+     *
+     * Collection:
+     * notices
+     *
+     * Schema:
+     * NoticeSchema
+     *
+     * Usage inside Service:
+     *
+     * @InjectModel(Notice.name)
+     * private noticeModel: Model<Notice>
+     *
+     * ------------------------------------------------------------------------
+     */
+    MongooseModule.forFeature([
+      {
+        name: Notice.name,
+        schema: NoticeSchema,
+      },
+    ]),
+
+    /**
+     * ------------------------------------------------------------------------
+     * File Upload Module
+     * ------------------------------------------------------------------------
+     *
+     * Provides AWS S3 functionality.
+     *
+     * Features:
+     * - Generate Signed URLs
+     * - Upload Files
+     * - Delete Files
+     * - Verify Uploaded Files
+     *
+     * Used By:
+     * NoticeController
+     *
+     * ------------------------------------------------------------------------
+     */
     FileUploadModule,
+
+    /**
+     * ------------------------------------------------------------------------
+     * Redis Cache Module
+     * ------------------------------------------------------------------------
+     *
+     * Used for temporary storage of upload metadata.
+     *
+     * Example Flow:
+     *
+     * Create Notice
+     *      ↓
+     * Generate Signed URL
+     *      ↓
+     * Store Metadata in Redis
+     *      ↓
+     * Upload File to S3
+     *      ↓
+     * Finalize Upload
+     *      ↓
+     * Save Notice in MongoDB
+     *
+     * ------------------------------------------------------------------------
+     */
     RedisCacheModule,
   ],
+
+  /**
+   * --------------------------------------------------------------------------
+   * Controllers
+   * --------------------------------------------------------------------------
+   *
+   * Handles HTTP Requests
+   *
+   * Routes:
+   * - POST /notices
+   * - POST /notices/finalize/:fileKey
+   * - GET /notices
+   * - PUT /notices/:id
+   * - DELETE /notices/:id
+   *
+   * --------------------------------------------------------------------------
+   */
   controllers: [NoticeController],
+
+  /**
+   * --------------------------------------------------------------------------
+   * Providers
+   * --------------------------------------------------------------------------
+   *
+   * NoticeService
+   * - Business Logic
+   * - Database Operations
+   *
+   * FileUploadService
+   * - AWS S3 Operations
+   *
+   * --------------------------------------------------------------------------
+   */
   providers: [NoticeService, FileUploadService],
 })
-export class NoticeModule {}
+export class NoticeModule { }

@@ -1,59 +1,241 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    Logger,
+} from '@nestjs/common';
+
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { CreateSubtaskDto, UpdateSubtaskDto, } from '@lib/dto';
+
+// DTOs
+import {
+    CreateSubtaskDto,
+    UpdateSubtaskDto,
+} from '@lib/dto';
+
+// Database Schema
 import { SubTasks } from '@lib/database';
+
+// Common Constants
 import { USER_POPULATION_FIELDS } from '@lib/common';
 
+/**
+ * SubTasksService
+ *
+ * Handles:
+ * - Create Subtasks
+ * - List Subtasks
+ * - Update Subtasks
+ * - Delete Subtasks
+ *
+ * Relationship:
+ *
+ * Project
+ *   │
+ *   └── Task
+ *          │
+ *          ├── Subtask 1
+ *          ├── Subtask 2
+ *          ├── Subtask 3
+ *          └── Subtask N
+ *
+ */
 @Injectable()
 export class SubTasksService {
-    private readonly logger = new Logger(SubTasksService.name);
+    /**
+     * Logger for debugging
+     */
+    private readonly logger =
+        new Logger(SubTasksService.name);
+
     constructor(
-        @InjectModel(SubTasks.name) private readonly subtaskModel: Model<SubTasks>,
+        /**
+         * Inject SubTask MongoDB Model
+         */
+        @InjectModel(SubTasks.name)
+        private readonly subtaskModel: Model<SubTasks>,
     ) { }
 
+    // ============================================================
+    // CREATE SUBTASK
+    // ============================================================
 
+    /**
+     * Creates a new subtask.
+     *
+     * Example:
+     *
+     * Parent Task:
+     * "Develop Authentication Module"
+     *
+     * Subtasks:
+     * - Create Login API
+     * - Create Register API
+     * - Create JWT Middleware
+     */
+    async createSubtask(
+        subtask: CreateSubtaskDto,
+    ) {
+        /**
+         * Create new subtask document
+         */
+        const newSubtask =
+            new this.subtaskModel(subtask);
 
-    // create a subtask
-    async createSubtask(subtask: CreateSubtaskDto) {
-        const newSubtask = new this.subtaskModel(subtask);
+        /**
+         * Save into MongoDB
+         */
         return await newSubtask.save();
     }
 
+    // ============================================================
+    // GET ALL SUBTASKS
+    // ============================================================
 
-    // fetch all subtasks
-    async getAllSubtasks(query: { task: string, user: string }) {
+    /**
+     * Returns all subtasks of a task.
+     *
+     * Optional Filter:
+     * assigned user
+     *
+     * Query Example:
+     *
+     * {
+     *   task: "taskId",
+     *   user: "userId"
+     * }
+     */
+    async getAllSubtasks(
+        query: {
+            task: string;
+            user: string;
+        },
+    ) {
         const { task, user } = query;
-        const queryFilter = { task };
+
+        /**
+         * Base filter
+         */
+        const queryFilter: any = {
+            task,
+        };
+
+        /**
+         * Filter by assigned user
+         */
         if (user && user !== '') {
             queryFilter['assignedTo'] = user;
         }
 
+        /**
+         * Find subtasks
+         */
+        return await this.subtaskModel
+            .find(queryFilter)
 
+            /**
+             * Populate Users
+             */
+            .populate({
+                path:
+                    'assignedTo createdBy updatedBy',
 
-        return await this.subtaskModel.find(queryFilter).populate({
-            path: 'assignedTo createdBy updatedBy',
-            select: 'userId userIdRef',
-            populate: {
-                path: 'userId',
-                select: USER_POPULATION_FIELDS,
-            },
-        }).sort({
-            isCompleted: 1
-        }).exec()
+                select: 'userId userIdRef',
+
+                populate: {
+                    path: 'userId',
+
+                    select:
+                        USER_POPULATION_FIELDS,
+                },
+            })
+
+            /**
+             * Incomplete tasks first
+             *
+             * false -> true
+             */
+            .sort({
+                isCompleted: 1,
+            })
+
+            .exec();
     }
 
+    // ============================================================
+    // UPDATE SUBTASK
+    // ============================================================
 
-    async updateSubtasks(id: string, updateSubtask: UpdateSubtaskDto) {
-        this.logger.debug("update the subtask is calling")
-        this.logger.log({id, ...updateSubtask})
-        // suppose from col - 1 :id
-        // suppose form col - 2 :id 
-        
-        return await this.subtaskModel.findByIdAndUpdate(id, updateSubtask)
+    /**
+     * Updates a subtask.
+     *
+     * Example:
+     *
+     * Before:
+     * {
+     *   title: "Create Login API",
+     *   isCompleted: false
+     * }
+     *
+     * After:
+     * {
+     *   title: "Create Login API",
+     *   isCompleted: true
+     * }
+     */
+    async updateSubtasks(
+        id: string,
+        updateSubtask: UpdateSubtaskDto,
+    ) {
+        /**
+         * Debug Logs
+         */
+        this.logger.debug(
+            'update the subtask is calling',
+        );
+
+        this.logger.log({
+            id,
+            ...updateSubtask,
+        });
+
+        /**
+         * Update Subtask
+         */
+        return await this.subtaskModel
+            .findByIdAndUpdate(
+                id,
+                updateSubtask,
+            );
+
+        /**
+         * Note:
+         * Currently missing:
+         * { new: true }
+         *
+         * So MongoDB returns OLD document.
+         */
     }
 
-    async deleteSubtasks(id: string) {
-        return await this.subtaskModel.findByIdAndDelete(id);
+    // ============================================================
+    // DELETE SUBTASK
+    // ============================================================
+
+    /**
+     * Deletes a subtask.
+     *
+     * Example:
+     *
+     * Subtask:
+     * "Create JWT Middleware"
+     *
+     * Result:
+     * Deleted
+     */
+    async deleteSubtasks(
+        id: string,
+    ) {
+        return await this.subtaskModel
+            .findByIdAndDelete(id);
     }
 }
