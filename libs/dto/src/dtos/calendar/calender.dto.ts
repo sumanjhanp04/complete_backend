@@ -1,3 +1,23 @@
+
+// This file is the complete blueprint of the Calendar System, defining:
+
+// ✓ Event Information
+// ✓ Meeting Information
+// ✓ Online Meeting Links
+// ✓ Attendees
+// ✓ Recurring Event Rules
+// ✓ Shift Based Events
+// ✓ User Based Events
+// ✓ Reminder Configuration
+// ✓ Notification Settings
+// ✓ Validation Rules
+// ✓ Swagger Documentation
+
+// That's why I recommended earlier that you start learning the PAS
+//  project from the Calendar module—it contains many real-world 
+// backend concepts (DTOs, validation, scheduling, notifications, recurring logic,
+//  and user targeting) in a single feature.
+
 import { CALENDAR_EVENT_TYPE } from '@lib/database';
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
