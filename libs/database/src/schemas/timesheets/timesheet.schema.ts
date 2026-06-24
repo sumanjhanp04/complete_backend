@@ -1,32 +1,101 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import mongoose, { Document } from "mongoose";
-import { Employee } from "../employees/employee.schema";
-import { STATUS } from "../consts/consts.schema";
+// NestJS Mongoose decorators
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
+// Mongoose imports
+import mongoose, { Document } from 'mongoose';
+
+// Employee schema
+import { Employee } from '../employees/employee.schema';
+
+// Status enum
+import { STATUS } from '../consts/consts.schema';
+
+// Type used in services
 export type TimeSheetDocument = TimeSheet & Document;
 
-@Schema({timestamps:true})
-export class TimeSheet{
-@Prop({required:true})
-content:string
+/*
+|--------------------------------------------------------------------------
+| TIMESHEET SCHEMA
+|--------------------------------------------------------------------------
+| Stores employee work logs.
+|
+| Example:
+| Employee worked 6 hours on Login API.
+|--------------------------------------------------------------------------
+*/
 
-@Prop({required:true,type:mongoose.Schema.Types.ObjectId, ref:Employee.name})
-userId:string
+@Schema({
+  timestamps: true, // Adds createdAt and updatedAt
+})
+export class TimeSheet {
+  /*
+   * Work description
+   *
+   * Example:
+   * "Developed Login API"
+   * "Fixed Payment Bug"
+   */
+  @Prop({ required: true })
+  content: string;
 
-@Prop({required:true})
-duration:string
+  /*
+   * Employee who submitted timesheet
+   */
+  @Prop({
+    required: true,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: Employee.name,
+  })
+  userId: string;
 
-@Prop({require:true})
-submitDate:string
+  /*
+   * Time spent
+   *
+   * Example:
+   * "4 Hours"
+   * "8 Hours"
+   */
+  @Prop({ required: true })
+  duration: string;
 
-@Prop({ required: true, enum: STATUS, default:STATUS.PENDING })
-status: string;
+  /*
+   * Date for which work is submitted
+   *
+   * Example:
+   * 2026-06-24
+   */
+  @Prop({ require: true })
+  submitDate: string;
 
-@Prop({type:mongoose.Schema.Types.ObjectId, ref:Employee.name})
-approveBy:string;
+  /*
+   * Approval status
+   *
+   * PENDING
+   * APPROVED
+   * REJECTED
+   */
+  @Prop({
+    required: true,
+    enum: STATUS,
+    default: STATUS.PENDING,
+  })
+  status: string;
 
-@Prop()
-approveAt:string;
+  /*
+   * Manager/Admin who approved
+   */
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: Employee.name,
+  })
+  approveBy: string;
+
+  /*
+   * Approval date
+   */
+  @Prop()
+  approveAt: string;
 }
 
-export const TimeSheetSchema = SchemaFactory.createForClass(TimeSheet)
+// Convert class into MongoDB schema
+export const TimeSheetSchema = SchemaFactory.createForClass(TimeSheet);
