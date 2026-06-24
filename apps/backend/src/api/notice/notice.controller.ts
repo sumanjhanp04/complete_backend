@@ -1,36 +1,55 @@
+// Service layer containing all business logic for Notice module
 import { NoticeService } from './notice.service';
+
+// NestJS decorators and exceptions
 import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Param,
-  UseGuards,
-  BadRequestException,
-  Query,
-  NotFoundException,
-  Delete,
-  Put,
-  Logger,
+  Body, // Gets data sent in request body (POST, PUT)
+  Controller, // Marks class as a controller
+  Get, // Handles HTTP GET requests
+  Post, // Handles HTTP POST requests
+  Param, // Gets route parameters (e.g. /notice/:id)
+  UseGuards, // Applies authentication/authorization guards
+  BadRequestException, // Throws 400 Bad Request error
+  Query, // Gets query parameters (?page=1)
+  NotFoundException, // Throws 404 Not Found error
+  Delete, // Handles HTTP DELETE requests
+  Put, // Handles HTTP PUT requests
+  Logger, // Used for logging messages and errors
 } from '@nestjs/common';
 
+// Swagger decorators used for API documentation
 import {
-  ApiTags,
-  ApiOperation,
-  ApiBody,
-  ApiBearerAuth,
-  ApiQuery,
+  ApiTags, // Groups APIs in Swagger UI
+  ApiOperation, // Adds description to an API endpoint
+  ApiBody, // Documents request body structure
+  ApiBearerAuth, // Indicates JWT/Bearer token authentication
+  ApiQuery, // Documents query parameters
 } from '@nestjs/swagger';
 
+// Custom authentication/authorization guard
 import { AccessGuard } from '@lib/guards';
+
+// Generates unique IDs
 import { v4 as uuidv4 } from 'uuid';
+
+// Custom decorators
 import { HasAccess, UserDetails } from '@lib/decorators';
+// HasAccess -> Checks permissions/roles
+// UserDetails -> Gets logged-in user information
+
+// Service used for uploading files (images, documents, etc.)
 import { FileUploadService } from '@app/file-upload';
+
+// Redis service used for caching data
 import { RedisService } from '@app/cache/cache.service';
+
+// Common DTO for pagination, filtering, searching
 import { ListQueryDTO } from '@lib/dto';
+
+// DTOs for Notice module
 import {
-  CreateNoticeDto,
-  UpdateNoticeDto,
+  CreateNoticeDto, // Validates data when creating a notice
+  UpdateNoticeDto, // Validates data when updating a notice
 } from '@lib/dto/dtos/notice/notice.dto';
 
 /**
@@ -66,7 +85,7 @@ export class NoticeController {
     private readonly noticeService: NoticeService,
     private readonly fileUploadService: FileUploadService,
     private readonly redisService: RedisService,
-  ) { }
+  ) {}
 
   /**
    * ==========================================================================
@@ -100,9 +119,7 @@ export class NoticeController {
     description: 'Upload multiple files along with metadata',
     type: CreateNoticeDto,
   })
-  async createFile(
-    @Body() createNoticeDto: CreateNoticeDto,
-  ) {
+  async createFile(@Body() createNoticeDto: CreateNoticeDto) {
     const {
       title,
       description,
@@ -138,11 +155,10 @@ export class NoticeController {
       /**
        * Generate AWS S3 Signed Upload URL
        */
-      const signedUrl =
-        await this.fileUploadService.createSignedUrl({
-          filename: key,
-          type: file.type,
-        });
+      const signedUrl = await this.fileUploadService.createSignedUrl({
+        filename: key,
+        type: file.type,
+      });
 
       /**
        * Store upload metadata temporarily in Redis
@@ -211,19 +227,14 @@ export class NoticeController {
    * ==========================================================================
    */
   @Post('/finalize/:fileKey')
-  async finalizeFileUpload(
-    @Param('fileKey') fileKey: string,
-  ) {
+  async finalizeFileUpload(@Param('fileKey') fileKey: string) {
     /**
      * Fetch cached upload metadata
      */
-    const cachedFile =
-      await this.redisService.getFromCache(fileKey);
+    const cachedFile = await this.redisService.getFromCache(fileKey);
 
     if (!cachedFile) {
-      throw new BadRequestException(
-        'File upload session expired or invalid',
-      );
+      throw new BadRequestException('File upload session expired or invalid');
     }
 
     const parsedData = JSON.parse(cachedFile) as {
@@ -325,11 +336,7 @@ export class NoticeController {
       employeeId,
     };
 
-    return this.noticeService.findAll(
-      user,
-      searchType,
-      query,
-    );
+    return this.noticeService.findAll(user, searchType, query);
   }
 
   /**
@@ -353,8 +360,7 @@ export class NoticeController {
     @Body() updateNoticeDto: UpdateNoticeDto,
     @UserDetails() user: any,
   ) {
-    const existingNotice =
-      await this.noticeService.findById(noticeId);
+    const existingNotice = await this.noticeService.findById(noticeId);
 
     if (!existingNotice) {
       throw new NotFoundException('Notice not found');
@@ -372,11 +378,10 @@ export class NoticeController {
       );
     }
 
-    const updatedNotice =
-      await this.noticeService.updateNotice(
-        noticeId,
-        updateNoticeDto,
-      );
+    const updatedNotice = await this.noticeService.updateNotice(
+      noticeId,
+      updateNoticeDto,
+    );
 
     return {
       success: true,
@@ -410,12 +415,8 @@ export class NoticeController {
    */
   @Delete(':id')
   @ApiOperation({ summary: 'Delete notice by ID' })
-  async deleteFile(
-    @Param('id') fileId: string,
-    @UserDetails() user: any,
-  ) {
-    const existingFile =
-      await this.noticeService.findById(fileId);
+  async deleteFile(@Param('id') fileId: string, @UserDetails() user: any) {
+    const existingFile = await this.noticeService.findById(fileId);
 
     if (!existingFile) {
       throw new NotFoundException('File not found');
@@ -436,10 +437,7 @@ export class NoticeController {
     /**
      * Delete file from S3 and Database
      */
-    await this.noticeService.deleteNotice(
-      fileId,
-      existingFile.filePath,
-    );
+    await this.noticeService.deleteNotice(fileId, existingFile.filePath);
 
     return {
       success: true,

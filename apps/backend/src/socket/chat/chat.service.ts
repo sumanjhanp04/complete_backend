@@ -245,7 +245,7 @@ export class ChatService {
         )
         .populate('replyFor')
         .populate(this.getSeenByPopulate());
-        ;
+        
       return d;
     } else {
       throw new HttpException(

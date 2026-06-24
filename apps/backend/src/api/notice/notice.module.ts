@@ -32,21 +32,37 @@
 //
 // ============================================================================
 
+// NestJS decorator used to create a module
 import { Module } from '@nestjs/common';
+
+// Service containing all business logic for notices
 import { NoticeService } from './notice.service';
+
+// Controller containing API endpoints for notices
 import { NoticeController } from './notice.controller';
 
+// Service responsible for uploading files
+// (images, PDFs, documents, etc.)
 import { FileUploadService } from '../../../../../libs/file-upload/src/file-upload.service';
+
+// Module that provides FileUploadService
 import { FileUploadModule } from '@app/file-upload';
 
+// Loads environment variables from .env file
+// Example: MONGO_URI, REDIS_URL, AWS credentials
 import { ConfigModule } from '@nestjs/config';
+
+// NestJS integration with MongoDB using Mongoose
 import { MongooseModule } from '@nestjs/mongoose';
 
+// Notice MongoDB Schema and Model definition
 import {
-  Notice,
-  NoticeSchema,
+  Notice,        // Notice document/model name
+  NoticeSchema,  // Structure of Notice collection
 } from '@lib/database/schemas/notices/notice.schema';
 
+// Redis cache module used for caching data
+// to improve performance and reduce database calls
 import { RedisCacheModule } from '@app/cache/cache.module';
 
 @Module({

@@ -14,28 +14,55 @@ import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit {
+  // Logger for debugging and monitoring
   private logger = new Logger(SchedulerService.name);
+
   constructor(
+    // Service used to create/delete/reschedule cron jobs dynamically
     private readonly dynamicCronService: DynamicCronService,
-    @InjectModel(Calendar.name) private readonly calendarModel: Model<Calendar>,
-    @InjectModel(CronTab.name) private readonly cronTabModel: Model<CronTab>,
-    @InjectModel(User.name) private readonly userModel: Model<User>,
+
+    // Calendar MongoDB model
+    @InjectModel(Calendar.name)
+    private readonly calendarModel: Model<Calendar>,
+
+    // CronTab MongoDB model
+    @InjectModel(CronTab.name)
+    private readonly cronTabModel: Model<CronTab>,
+
+    // User MongoDB model
+    @InjectModel(User.name)
+    private readonly userModel: Model<User>,
+
+    // RabbitMQ client for sending in-app notifications
     @Inject(CONVERSATION_SERVICE)
     private readonly notificationClient: ClientProxy,
+
+    // RabbitMQ client for sending email notifications
     @Inject(NOTIFICATION_SERVICE)
     private readonly emailClient: ClientProxy,
-  ) { }
+  ) {}
+
+  /**
+   * Test API response
+   */
   getHello(): string {
     return 'Hello World!';
   }
 
+  /**
+   * Creates recurring cron jobs for all notifications
+   * attached to a calendar event.
+   */
   async scheduleRecurringEvent(data: SchedulerDto) {
-
+    // No notifications means no cron required
     if (data?.notifications.length == 0) return;
+
     const expiry = {
       expiryDate: data.expiryDate,
       count: data?.count,
     };
+
+    // Create separate cron jobs for each notification rule
     data?.notifications.forEach((d) => {
       this.dynamicCronService.createCronJob(data.id, data, d, () => {
         this.recurringJobEvent(data.id);
@@ -43,78 +70,124 @@ export class SchedulerService implements OnModuleInit {
     });
   }
 
-  async scheduleHolidayEvent(data: SchedulerDto) { }
+  /**
+   * Future implementation for holidays
+   */
+  async scheduleHolidayEvent(data: SchedulerDto) {}
 
-  async specificDateEvent(data: SchedulerDto) { }
+  /**
+   * Future implementation for specific date schedules
+   */
+  async specificDateEvent(data: SchedulerDto) {}
 
-  //Basic Operations
+  /**
+   * Delete an existing scheduler job
+   */
   async deleteScheduler(data: { name: string }) {
-    // return 'done'
+    // Remove cron from memory
     const res = this.dynamicCronService.deleteCronJob(data.name);
-    const cronData = await this.cronTabModel.deleteOne({ cronId: data.name });
 
+    // Remove cron record from database
+    await this.cronTabModel.deleteOne({
+      cronId: data.name,
+    });
 
     return res;
   }
 
+  /**
+   * Main cron execution method
+   * Runs whenever a scheduled cron job is triggered.
+   */
   async recurringJobEvent(id: string): Promise<void> {
     try {
-      const existingCronTab = await this.cronTabModel.findOne({ cronId: id });
+      // Fetch cron metadata
+      const existingCronTab = await this.cronTabModel.findOne({
+        cronId: id,
+      });
+
       const now = new Date();
+
+      // Expiry date of cron job
       const cronExpiryDate = existingCronTab?.expireDate
-        ? new Date(existingCronTab?.expireDate)
+        ? new Date(existingCronTab.expireDate)
         : null;
+
       let runCount = 0;
 
-
+      // Current execution count
       if (existingCronTab) {
-        runCount = existingCronTab.runCount ? +existingCronTab.runCount : null; // Initialize runCount with the stored value
+        runCount = existingCronTab.runCount ? +existingCronTab.runCount : null;
       }
 
-      if (cronExpiryDate && now > new Date(cronExpiryDate)) {
-        this.logger.log(
-          `Event Expire with date ${existingCronTab?.expireDate}`,
-        );
-        await this.cronTabModel.deleteOne({ cronId: id });
-        this.dynamicCronService.deleteCronJob(id); // Stop and delete the job if expired by date
+      /**
+       * Expiry Date Validation
+       */
+      if (cronExpiryDate && now > cronExpiryDate) {
+        this.logger.log(`Event expired on ${existingCronTab?.expireDate}`);
+
+        await this.cronTabModel.deleteOne({
+          cronId: id,
+        });
+
+        // Remove cron permanently
+        this.dynamicCronService.deleteCronJob(id);
       } else if (runCount && runCount >= +existingCronTab?.occurrence) {
+
+      /**
+       * Occurrence Count Validation
+       */
         this.logger.log(
-          `Event Expire with occurrence ${existingCronTab?.occurrence}`,
+          `Event reached max occurrence ${existingCronTab?.occurrence}`,
         );
-        await this.cronTabModel.deleteOne({ cronId: id });
-        this.dynamicCronService.deleteCronJob(id); // Stop and delete if max occurrences reached
+
+        await this.cronTabModel.deleteOne({
+          cronId: id,
+        });
+
+        this.dynamicCronService.deleteCronJob(id);
       } else {
+
+      /**
+       * Execute Notification Logic
+       */
         runCount++;
+
         this.logger.log(
-          `Event running with occurrence ${runCount} out of ${existingCronTab?.occurrence} on ${now} and have a expire date of ${existingCronTab?.expireDate}`,
+          `Running occurrence ${runCount}/${existingCronTab?.occurrence}`,
         );
-        const calendarData = await this.calendarModel.findById(id).exec();
+
+        // Load calendar event
+        const calendarData = await this.calendarModel.findById(id);
 
         if (!calendarData) {
-          this.logger.log(`Calendar event not found with id ${id}`);
+          this.logger.log(`Calendar event not found: ${id}`);
           return;
         }
 
+        // No notifications configured
         if (calendarData.notifications.length === 0) {
-          this.logger.log(
-            `No notifications to send for calendar event with id ${id}`,
-          );
           return;
         }
 
-        const notificationPromises = calendarData?.notifications.map(
+        /**
+         * Process all notification types
+         */
+        const notificationPromises = calendarData.notifications.map(
           async (notification) => {
+            /**
+             * EMAIL NOTIFICATION
+             */
             if (notification?.type === 'email') {
-              this.logger.log(
-                `Sending email notification for calendar event with id: ${id}`,
-              );
-
-
               const users = await this.userModel
-                .find({ _id: { $in: calendarData.attendees } })
+                .find({
+                  _id: {
+                    $in: calendarData.attendees,
+                  },
+                })
                 .populate('userId');
 
-
+              // Generate personalized emails
               const allEmailSchema = this.generateEmailSchema(
                 users,
                 calendarData,
@@ -125,111 +198,128 @@ export class SchedulerService implements OnModuleInit {
                   try {
                     await this.emailClient
                       .send(
-                        { cmd: NOTIFY_USERS_TOPIC.SEND_EMAIL },
-                        { ...d }
+                        {
+                          cmd: NOTIFY_USERS_TOPIC.SEND_EMAIL,
+                        },
+                        { ...d },
                       )
                       .toPromise();
+
                     this.logger.log(`Email sent to ${d.to}`);
                   } catch (err) {
-                    this.logger.error(`Error sending email to ${d.to}: ${err}`);
+                    this.logger.error(`Failed sending email to ${d.to}`);
                   }
                 }),
               );
             } else if (notification?.type === 'inApp') {
-              this.logger.log(
-                `Sending CRM notification for calendar event with id: ${id}`,
-              );
+
+            /**
+             * IN-APP NOTIFICATION
+             */
               try {
                 const res = await lastValueFrom(
                   this.notificationClient.send(
-                    { cmd: NOTIFY_USERS_TOPIC.SEND_SCHEDULE_NOTIFICATION },
+                    {
+                      cmd: NOTIFY_USERS_TOPIC.SEND_SCHEDULE_NOTIFICATION,
+                    },
                     {
                       id,
-                      payload: { ...calendarData.toObject() },
+                      payload: {
+                        ...calendarData.toObject(),
+                      },
                     },
                   ),
                 );
 
                 if (!res) {
-                  throw new RpcException('Failed to send CRM notification');
+                  throw new RpcException('Failed to send notification');
                 }
               } catch (err) {
-                this.logger.error(
-                  `Error sending CRM notification for event id ${id}: ${err}`,
-                );
+                this.logger.error(`Notification failed for event ${id}`);
               }
             }
           },
         );
 
-        // Wait for all notifications to complete
+        // Wait until all notifications complete
         await Promise.all(notificationPromises);
-        this.cronTabModel
-          .findOneAndUpdate(
-            { cronId: id },
-            { runCount: runCount },
-            { new: true },
-          )
-          .exec();
+
+        // Update execution count
+        await this.cronTabModel.findOneAndUpdate(
+          { cronId: id },
+          { runCount },
+          { new: true },
+        );
       }
     } catch (error) {
-      this.logger.error(
-        `Error in recurringJobEvent for calendar event with id ${id}:`,
-        error,
-      );
-      throw error; // Re-throw the error to ensure proper handling upstream
+      this.logger.error(`Recurring job failed for event ${id}`, error);
+
+      throw error;
     }
   }
 
-  /**************  For Server restart*************************/
+  /**
+   * Generates callback function
+   * used when cron jobs are restored after restart.
+   */
   private runCallback(id: string, type: string): () => void {
     switch (type) {
       case 'RECURRING':
-        // Return a function that, when called, will execute this.recurringJobEvent(id)
         return () => this.recurringJobEvent(id);
 
       default:
-        // Return a no-op function if the type does not match any known cases
-        return () => { };
+        return () => {};
     }
   }
 
+  /**
+   * Generates personalized email payloads
+   * for all attendees.
+   */
   private generateEmailSchema(users: any[], calendar: any) {
     return users?.map((d) => {
-      // Ensure email, firstName, and lastName are available, otherwise default to empty strings
       const email = d?.userId?.email || '';
-      const firstName = d?.userId?.firstName || '';
-      const lastName = d?.userId?.lastName || '';
-      const subject = calendar?.name || 'No Subject'; // Fallback for subject if calendar name is missing
-      const description = calendar?.description?.toString() || ''; // Ensure description is a string
 
-      // Replace placeholders with actual values
+      const firstName = d?.userId?.firstName || '';
+
+      const lastName = d?.userId?.lastName || '';
+
+      const subject = calendar?.name || 'No Subject';
+
+      const description = calendar?.description?.toString() || '';
+
+      // Replace template placeholders
       const htmlContent = description
         .replaceAll('{{firstName}}', firstName)
         .replaceAll('{{lastName}}', lastName);
 
-      // Create the email schema object
-      const emailSchema = {
+      return {
         to: email,
-        subject: subject,
+        subject,
         html: htmlContent,
       };
-
-      return emailSchema;
     });
   }
+
+  /**
+   * Runs automatically when server starts.
+   *
+   * Purpose:
+   * Restore all active cron jobs
+   * from MongoDB after server restart.
+   */
   async onModuleInit() {
-
-
-    const cronData = await this.cronTabModel.find({ status: true });
-
+    const cronData = await this.cronTabModel.find({
+      status: true,
+    });
 
     if (cronData?.length === 0) return;
-    cronData?.forEach((d) => {
+
+    cronData.forEach((d) => {
       this.dynamicCronService.rescheduleCronJob(
-        d?.cronId,
-        d?.cronExpression,
-        this.runCallback(d?.cronId, d?.type),
+        d.cronId,
+        d.cronExpression,
+        this.runCallback(d.cronId, d.type),
       );
     });
   }

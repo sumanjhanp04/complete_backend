@@ -233,7 +233,7 @@ export class CalendarService {
       { new: true },
     );
 
-    const isRecurringEvent =
+    const isRecurringEvent =      
       updateCalendarDto?.isRecurring && updatedCalendarData?.isRecurring;
 
     const isHolidayEvent =
